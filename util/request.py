@@ -3,12 +3,34 @@ class Request:
     def __init__(self, request: bytes):
         # TODO: parse the bytes of the request and populate the following instance variables
 
-        self.body = b""
-        self.method = ""
-        self.path = ""
-        self.http_version = ""
+        parts = request.split(b'\r\n\r\n')  # split request line and headers apart from body
+        a = (parts[0]).split(b'\r\n')       # split apart request line and headers
+        request_line = (a[0]).split(' ')
+        headers = a[1:]
+            
+
+        self.body = parts[1]
+        self.method = request_line[0].decode()
+        self.path = request_line[1].decode()
+        self.http_version = request_line[2][5:].decode()   # cut off at 5 for 'HTTP/'
+
         self.headers = {}
+        for header in headers:
+            x = header.split(b': ')    ## ask in office hour if i can assume there's a space after colon
+            key = x[0].decode().lower()   # turn into lower case for case insensitive
+            value = x[1].decode()
+            self.headers[key] = value   ## ask if i have to remove trailing spaces 
+                                        ## from names and values in headers dictionary
+
         self.cookies = {}
+        if "cookie" in self.headers:
+            cookie_headers = self.headers["cookie"].split('; ')
+            for header in cookie_headers:
+                y = header.split(': ')
+                key = y[0].lower().strip()
+                value = y[1].strip()  
+                self.cookies[key] = value
+
 
 
 def test1():
