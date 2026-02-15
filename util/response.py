@@ -50,7 +50,8 @@ class Response:
     def to_data(self):    
         if 'content-type' not in self.headersDict:   
             self.headersDict['content-type'] = 'text/plain; charset=utf-8'
-        self.headersDict["content-length"] = str(len(self.body))   
+        self.headersDict["content-length"] = str(len(self.body))  
+        self.headersDict["X-Content-Type-Options"] = "nosniff" 
 
         responseLine = b'HTTP/1.1 ' + self.status + b' ' + self.message + b'\r\n'
 

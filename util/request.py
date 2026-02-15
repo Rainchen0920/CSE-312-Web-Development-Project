@@ -23,18 +23,27 @@ class Request:
             x = header.split(b':', 1)    
             key = x[0].decode().strip()
             value = x[1].decode().strip()  
-            parts = []
-            for x in key.lower().split('-'):
-                parts.append(x.capitalize())
-            capitalizedKey = '-'.join(parts)
-            if (capitalizedKey == "Cookie") and ("Cookie" in self.headers):
-                self.headers["Cookie"] = self.headers["Cookie"] + "; " + value
+            if key.lower() == "cookie":
+                existing_cookie_key = None
+                for k in self.headers.keys():
+                    if k.lower() == "cookie":
+                        existing_cookie_key = k
+                        break
+                if existing_cookie_key is None:  # in case the cookie header doesn't exist yet
+                    self.headers[key] = value
+                else:
+                    self.headers[existing_cookie_key] = self.headers[existing_cookie_key] + "; " + value
             else:
-                self.headers[capitalizedKey] = value  
+                self.headers[key] = value
 
         self.cookies = {}
-        if "Cookie" in self.headers:
-            cookies = self.headers["Cookie"].split(';')
+        cookie_str = None
+        for k in self.headers.keys():
+            if k.lower() == "cookie":
+                cookie_str = self.headers[k]
+                break
+        if cookie_str is not None:
+            cookies = cookie_str.split(';')
             for header in cookies:
                 header = header.strip()
                 if (not header) or ("=" not in header):
@@ -100,12 +109,12 @@ def test4():  # test case on headers with weird casing
     assert request.method == "GET"
     assert request.path == "/testing"
     assert request.http_version == "HTTP/1.1"
-    assert "Host" in request.headers
-    assert request.headers["Host"] == "example.com"  
-    assert "Pjo-Season-3" in request.headers
-    assert request.headers["Pjo-Season-3"] == "titanscurse"  
-    assert "Content-Type" in request.headers
-    assert request.headers["Content-Type"] == "text/plain; charset=utf-8" 
+    assert "hOsT" in request.headers
+    assert request.headers["hOsT"] == "example.com"  
+    assert "pJO-seASOn-3" in request.headers
+    assert request.headers["pJO-seASOn-3"] == "titanscurse"  
+    assert "cOnTeNt-TyPe" in request.headers
+    assert request.headers["cOnTeNt-TyPe"] == "text/plain; charset=utf-8" 
     assert request.body == b''
     #print("test 4 good")
 
@@ -128,7 +137,7 @@ def test6():  # case of extra CRLF at the end
 
 def test7():  # case of cookie value with = in it
     req = Request(b"GET /cookie HTTP/1.1\r\nHost: example.com\r\nCookie: lotofequal=abc=123==; theme=dark=; id=67\r\n\r\n")
-    print(req.headers)
+    #print(req.headers)
     assert req.cookies["lotofequal"] == "abc=123=="
     assert req.cookies["theme"] == "dark="
     assert req.cookies["id"] == "67"
@@ -136,7 +145,7 @@ def test7():  # case of cookie value with = in it
 
 def test8():  # case of extra spaces around cookie names and values
     req = Request(b"GET /cookie HTTP/1.1\r\nHost: example.com\r\nCookie: a=1;  b=2 ; c = three;    d=four\r\n\r\n")
-    print(req.headers)
+    #print(req.headers)
     assert req.cookies["a"] == "1"
     assert req.cookies["b"] == "2"
     assert req.cookies["c"] == "three"
@@ -145,7 +154,7 @@ def test8():  # case of extra spaces around cookie names and values
 
 def test9():  # case of multiple cookie headers
     req = Request(b"GET / HTTP/1.1\r\nHost: x\r\nCookie: a=1\r\nCookie: b=2\r\n\r\n")
-    print(req.headers)
+    #print(req.headers)
     assert req.cookies["a"] == "1"
     assert req.cookies["b"] == "2"
 
