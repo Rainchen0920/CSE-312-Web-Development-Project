@@ -1,5 +1,4 @@
-import util.request as request
-import util.response as response
+from util.request import Request
 
 class Router:
 
@@ -9,7 +8,7 @@ class Router:
     def add_route(self, method, path, action, exact_path=False):
         self.routes.append((method, path, action, exact_path))
 
-    def route_request(self, request, handler):
+    def route_request(self, request:Request, handler):
         req_method = request.method
         req_path = request.path
 

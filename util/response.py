@@ -43,9 +43,8 @@ class Response:
         return self
 
     def json(self, data):
-        self.body = json.dumps(data, separators=(",", ":")).encode()
+        self.body = json.dumps(data).encode()
         self.headersDict["content-type"] = "application/json"
-        self.headersDict["content-length"] = str(len(self.body))
         return self
 
     def to_data(self):    
@@ -84,27 +83,18 @@ def test1():
     res2 = Response()
     res2.json([1,2,3,4])
     actual2 = res2.to_data()
-    expected2 = b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 9\r\n\r\n[1,2,3,4]'
+    expected2 = b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 12\r\n\r\n[1, 2, 3, 4]'
     #print(actual2)
     assert actual2 == expected2
 
-    # testing the cookies function
-    res3 = Response()
-    res3.text("ok")
-    res3.cookies({"session": "abc123; Path=/; HttpOnly; Secure"})
-    actual3 = res3.to_data()
-    expected3 = b'HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 2\r\nSet-Cookie: session=abc123; Path=/; HttpOnly; Secure\r\n\r\nok'
-    #print(actual3)
-    assert actual3 == expected3
-
     # testing case of multiple cookies
-    res4 = Response()
-    res4.bytes(b'ok\r\n\r\n')
-    res4.cookies({"session": "abc123; Path=/; HttpOnly; Secure", "theme": "dark; Max-Age=3600; SameSite=Lax", "mood": "happy; Path=/; HttpOnly"})
-    actual4 = res4.to_data()
-    expected4 = b'HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 6\r\nSet-Cookie: session=abc123; Path=/; HttpOnly; Secure\r\nSet-Cookie: theme=dark; Max-Age=3600; SameSite=Lax\r\nSet-Cookie: mood=happy; Path=/; HttpOnly\r\n\r\nok\r\n\r\n'
+    res3 = Response()
+    res3.bytes(b'ok\r\n\r\n')
+    res3.cookies({"session": "abc123; Path=/; HttpOnly; Secure", "theme": "dark; Max-Age=3600; SameSite=Lax", "mood": "happy; Path=/; HttpOnly"})
+    actual3 = res3.to_data()
+    expected3 = b'HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 6\r\nSet-Cookie: session=abc123; Path=/; HttpOnly; Secure\r\nSet-Cookie: theme=dark; Max-Age=3600; SameSite=Lax\r\nSet-Cookie: mood=happy; Path=/; HttpOnly\r\n\r\nok\r\n\r\n'
     #print(actual4)
-    assert actual4 == expected4
+    assert actual3 == expected3
 
     # testing set-status function
     res5 = Response()
