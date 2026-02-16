@@ -138,7 +138,7 @@ class ChatApi:
             handler.request.sendall(res.to_data())
             return
 
-        if chat_details.get("session") != session_id:
+        if chat_details.get("session") != session_id: 
             res = Response().set_status(403, "Forbidden").text("Forbidden")
             handler.request.sendall(res.to_data())
             return
