@@ -1,4 +1,5 @@
 from util.request import Request
+from util.response import Response
 
 class Router:
 
@@ -8,7 +9,7 @@ class Router:
     def add_route(self, method, path, action, exact_path=False):
         self.routes.append((method, path, action, exact_path))
 
-    def route_request(self, request:Request, handler):
+    def route_request(self, request: Request, handler):
         req_method = request.method
         req_path = request.path
 
@@ -26,7 +27,8 @@ class Router:
             action(request, handler)
             return
         
-        error_response = (b"HTTP/1.1 404 Not Found\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 13\r\n\r\n404 Not Found")
-        handler.request.sendall(error_response)
+        res = Response().set_status(404, "Not Found")
+        res.text("content Not Found")  
+        handler.request.sendall(res.to_data())
 
             

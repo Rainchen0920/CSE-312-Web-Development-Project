@@ -9,12 +9,12 @@ class Response:
         self.cookiesDict = {}
         self.fullResponse = b''
 
-    def set_status(self, code:int, text:str):
+    def set_status(self, code: int, text: str):
         self.status = str(code).encode()
         self.message = text.encode()
         return self
 
-    def headers(self, headers:dict): 
+    def headers(self, headers: dict): 
         new_headers = {}
         for key in headers.keys(): 
             if key.strip().lower() == "set-cookie":
@@ -29,7 +29,7 @@ class Response:
         return self
 
     # cookies: each key-value pair is a cookie
-    def cookies(self, cookies:dict): 
+    def cookies(self, cookies: dict): 
         self.cookiesDict.update(cookies)
         return self
 
@@ -37,7 +37,7 @@ class Response:
         self.body = self.body + data
         return self
 
-    def text(self, data:str):
+    def text(self, data: str):
         dataInBytes = data.encode()
         self.body = self.body + dataInBytes
         return self

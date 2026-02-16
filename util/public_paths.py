@@ -1,5 +1,6 @@
 import os
 from util.response import Response
+from util.request import Request
 
 class PublicPaths:
     MIME = {
@@ -11,51 +12,60 @@ class PublicPaths:
         ".ico": "image/x-icon"
     }
 
-    def safe_public_path(file_path:str):  #check for valid file path from "public" directory
-        if not file_path.startswith("/public"):
-            return "error"
-        file_path = file_path.lstrip('/')
-        return file_path
+    # check if path is valid
+    def safe_public_path(requestPath: str):
+        if not requestPath.startswith("/public"):
+            return None
+        relativePath = requestPath[7:]   # remove /public
+        if relativePath.startswith("/"):
+            relativePath = relativePath[1:]
+        # remove unnecessary stuff from the path
+        relativePath = os.path.normpath(relativePath) 
+        # check path doesn't start from root even though its supposed to be relative
+        if (relativePath.startswith("..")) or (os.path.isabs(relativePath)):  
+            return None
+        return os.path.join("public", relativePath)
+    
+    def send_404_response(handler):
+        res = Response().set_status(404, "Not Found")
+        res.text("content not found")
+        handler.request.sendall(res.to_data())
 
-    def serve_public(request, handler):
-        path_on_disk = safe_public_path(request.path)
-        if (path_on_disk is None) or (not os.path.isfile(path_on_disk)):
-            handler.request.sendall(Response().set_status(404, "Not Found").text("Not Found").to_data())
+    def serve_from_public(request: Request, handler):
+        path = PublicPaths.safe_public_path(request.path)
+        if (path is None) or (not os.path.isfile(path)):
+            PublicPaths.send_404_response(handler)
+            return
+        x = os.path.splitext(path.lower())
+        fileExtension = x[1]
+        mimeType = PublicPaths.MIME.get(fileExtension)
+        if mimeType is None:
+            PublicPaths.send_404_response(handler)
             return
 
-        _, ext = os.path.splitext(path_on_disk.lower())
-        mime = MIME.get(ext, "application/octet-stream")
-
-        with open(path_on_disk, "rb") as f:
+        with open(path, "rb") as f:  #rb to read as bytes
             data = f.read()
 
         res = Response()
-        res.headers({"Content-Type": mime})
+        res.headers({"Content-Type": mimeType})
         res.bytes(data)
         handler.request.sendall(res.to_data())
 
-    def render_page(page_filename: str):
-        def action(req, handler):
-            layout_path = os.path.join("public", "layout", "layout.html")
-            page_path = os.path.join("public", page_filename)
+    def render_page(request: Request, handler, page_filename: str):
+        layout_path = os.path.join("public", "layout", "layout.html")
+        page_path = os.path.join("public", page_filename)
+        if not os.path.isfile(page_path):
+            PublicPaths.send_404_response(handler)
+            return
 
-            if (not os.path.isfile(layout_path)) or (not os.path.isfile(page_path)):
-                handler.request.sendall(
-                    Response().set_status(404, "Not Found").text("Not Found").to_data()
-                )
-                return
+        with open(layout_path, "r", encoding="utf-8") as f:
+            layout = f.read()
+        with open(page_path, "r", encoding="utf-8") as f:
+            page = f.read()
 
-            # UTF-8 so emojis work
-            with open(layout_path, "r", encoding="utf-8") as f:
-                layout = f.read()
-            with open(page_path, "r", encoding="utf-8") as f:
-                page = f.read()
+        html_page = layout.replace("{{content}}", page)
 
-            full_html = layout.replace("{{content}}", page)
-
-            res = Response()
-            res.headers({"Content-Type": "text/html; charset=utf-8"})
-            res.text(full_html)
-            handler.request.sendall(res.to_data())
-        return action
-
+        res = Response()
+        res.headers({"Content-Type": "text/html; charset=utf-8"})
+        res.text(html_page)
+        handler.request.sendall(res.to_data())
