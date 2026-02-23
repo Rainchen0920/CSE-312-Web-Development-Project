@@ -28,6 +28,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("PATCH", "/api/chats", ChatApi.patch_chat, False)
         self.router.add_route("DELETE", "/api/chats", ChatApi.delete_chat, False)
 
+        # routes for AO1 and AO2
+        self.router.add_route("PATCH", "/api/reaction", ChatApi.add_reaction, False)
+        self.router.add_route("DELETE", "/api/reaction", ChatApi.delete_reaction, False)
+        self.router.add_route("PATCH", "/api/nickname", ChatApi.change_nickname, True)
+
         super().__init__(request, client_address, server)
 
     def handle(self):

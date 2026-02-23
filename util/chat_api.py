@@ -7,14 +7,10 @@ from util.database import chat_collection
 def escape_html(s: str) -> str:
     return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace('"',"&quot;").replace("'","&#x27;")
 
-
 def read_json(request) -> dict:
     if request.body is None or request.body == b"":
         return {}
     return json.loads(request.body.decode())
-
-def remove_query_string(path: str) -> str: 
-    return path.split("?", 1)[0]
 
 def get_session_id(request):
     return request.cookies.get("session")
@@ -33,16 +29,42 @@ def author_from_session(session_id):
     return session_to_author[session_id]
 
 def get_id_from_path(path: str):  # "/api/chats/<id>"
-    path = remove_query_string(path)
-    prefix = "/api/chats/"
-    if not path.startswith(prefix):
+    prefixes = ["/api/chats/","/api/reaction/","/api/nickname"]
+    path_prefix = ""
+    path_found = False
+    for prefix in prefixes:
+        if path.startswith(prefix):
+            path_found = True
+            path_prefix = prefix
+    if not path_found:
         return None
-    msg_id = path[len(prefix):]
+    msg_id = path[len(path_prefix):]
     if msg_id:
         return msg_id
     else:
         return None
 
+# does the preliminary checks for msg_id, the message, session_id
+def check_details(request, handler):
+    msg_id = get_id_from_path(request.path)
+    if msg_id is None:
+        res = Response().set_status(404, "Not Found").text("404 Not Found")
+        handler.request.sendall(res.to_data())
+        return False
+        
+    session_id = get_session_id(request)
+    if session_id is None:
+        res = Response().set_status(403, "Forbidden").text("403 Forbidden")
+        handler.request.sendall(res.to_data())
+        return False
+
+    chat_details = chat_collection.find_one({"id": msg_id})
+    if chat_details is None:
+        res = Response().set_status(404, "Not Found").text("404 Not Found")
+        handler.request.sendall(res.to_data())
+        return False
+
+    return True 
 
 class ChatApi:
 
@@ -53,6 +75,8 @@ class ChatApi:
                 "author": chat_details.get("author", ""),
                 "id": chat_details.get("id", ""),
                 "content": chat_details.get("content", ""),
+                "reactions": chat_details.get("reactions", {}),
+                "nickname": chat_details.get("nickname", ""),
                 "updated": bool(chat_details.get("updated", False)),
             })
         res = Response()
@@ -73,77 +97,120 @@ class ChatApi:
         author = author_from_session(session_id)
         msg_id = uuid.uuid4().hex
 
+        chat_detail = chat_collection.find_one({"session": session_id})
+        nickname = ""
+        if chat_detail is not None:
+            nickname = chat_detail.get("nickname", "")
+
         chat_collection.insert_one({
             "id": msg_id,
             "author": author,
             "session": session_id,
             "content": escape_html(content),  # prevent HTML injection
-            "updated": False
+            "updated": False,
+            "nickname": nickname,
+            "reactions": {}
         })
 
-        res.text("message sent")
         handler.request.sendall(res.to_data())
 
     def patch_chat(request, handler):
         msg_id = get_id_from_path(request.path)
-        if msg_id is None:
-            res = Response().set_status(404, "Not Found").text("404 Not Found")
-            handler.request.sendall(res.to_data())
+        if not check_details(request, handler):
             return
-
-        session_id = get_session_id(request)
-        if session_id is None:
-            res = Response().set_status(403, "Forbidden").text("403 Forbidden")
-            handler.request.sendall(res.to_data())
-            return
-
         chat_details = chat_collection.find_one({"id": msg_id})
-        if chat_details is None:
-            res = Response().set_status(404, "Not Found").text("404 Not Found")
-            handler.request.sendall(res.to_data())
-            return
-
-        if chat_details.get("session") != session_id:
+        session_id = get_session_id(request)
+        if chat_details.get("session") != session_id: 
             res = Response().set_status(403, "Forbidden").text("403 Forbidden")
             handler.request.sendall(res.to_data())
-            return
+            return 
 
         data = read_json(request)
         new_content = str(data.get("content", ""))
+        chat_collection.update_one({"id": msg_id},{"$set": {"content": escape_html(new_content), "updated": True}})
 
-        chat_collection.update_one(
-            {"id": msg_id},
-            {"$set": {"content": escape_html(new_content), "updated": True}}
-        )
-
-        res = Response().text("updated")
-        handler.request.sendall(res.to_data())
+        response = Response().text("message updated")
+        handler.request.sendall(response.to_data())
 
     def delete_chat(request, handler):
         msg_id = get_id_from_path(request.path)
-        if msg_id is None:
-            res = Response().set_status(404, "Not Found").text("Not Found")
-            handler.request.sendall(res.to_data())
+        if not check_details(request, handler):
             return
-
-        session_id = get_session_id(request)
-        if session_id is None:
-            res = Response().set_status(403, "Forbidden").text("Forbidden")
-            handler.request.sendall(res.to_data())
-            return
-
         chat_details = chat_collection.find_one({"id": msg_id})
-        if chat_details is None:
-            res = Response().set_status(404, "Not Found").text("Not Found")
-            handler.request.sendall(res.to_data())
-            return
-
+        session_id = get_session_id(request)
         if chat_details.get("session") != session_id: 
-            res = Response().set_status(403, "Forbidden").text("Forbidden")
+            res = Response().set_status(403, "Forbidden").text("403 Forbidden")
             handler.request.sendall(res.to_data())
-            return
+            return 
 
         chat_collection.delete_one({"id": msg_id})
 
-        res = Response().text("deleted")
-        handler.request.sendall(res.to_data())
+        response = Response().text("message deleted")
+        handler.request.sendall(response.to_data())
+
+    def add_reaction(request, handler):
+        msg_id = get_id_from_path(request.path)
+        session_id = get_session_id(request)
+        data = read_json(request)
+        emoji = data.get("emoji")
+
+        if not check_details(request, handler):
+            return
+        
+        reactions = chat_collection.find_one({"id": msg_id}).get("reactions")
+        if not reactions:
+            reactions = {emoji: [session_id]}
+        elif(emoji not in reactions):
+            reactions[emoji] = [session_id]
+        else: 
+            if session_id in reactions[emoji]:
+                res = Response().set_status(403, "Forbidden").text("403 Forbidden")
+                handler.request.sendall(res.to_data())
+                return  
+            else: 
+                reactions[emoji].append(session_id)
+        
+        chat_collection.update_one({"id": msg_id}, {"$set": {"reactions": reactions}})
+
+        response = Response().text("reaction added")
+        handler.request.sendall(response.to_data())
+
+
+    def delete_reaction(request, handler):
+        msg_id = get_id_from_path(request.path)
+        session_id = get_session_id(request)
+        data = read_json(request)
+        emoji = data.get("emoji")
+        
+        if not check_details(request, handler):
+            return
+        
+        reactions = chat_collection.find_one({"id": msg_id}).get("reactions")
+        if (not reactions) or (emoji not in reactions) or (session_id not in reactions[emoji]):
+            res = Response().set_status(403, "Forbidden").text("403 Forbidden")
+            handler.request.sendall(res.to_data())
+            return
+        
+        reactions[emoji].remove(session_id)
+        if not reactions[emoji]:
+            reactions.pop(emoji)
+        
+        chat_collection.update_one({"id": msg_id}, {"$set": {"reactions": reactions}})
+
+        response = Response().text("reaction deleted")
+        handler.request.sendall(response.to_data())
+    
+    def change_nickname(request, handler):
+        session_id = get_session_id(request)
+        data = read_json(request)
+        nickname = data.get("nickname")
+
+        if session_id is None:
+            res = Response().set_status(403, "Forbidden").text("403 Forbidden")
+            handler.request.sendall(res.to_data())
+            return
+        
+        chat_collection.update_many({"session": session_id},{"$set": {"nickname": nickname}})
+
+        response = Response().text("nickname changed")
+        handler.request.sendall(response.to_data())
