@@ -4,20 +4,20 @@ from util.router import Router
 from util.hello_path import hello_path
 from util.public_paths import PublicPaths
 from util.chat_api import ChatApi
+from util.auth import Authentication
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def __init__(self, request, client_address, server):
         self.router = Router()
+        self.router.add_route("GET", "/hello", hello_path, True)
 
+        # TODO: Add your routes here
         def render_index(req, handler):
             PublicPaths.render_page(req, handler, "index.html")
-
         def render_chat(req, handler):
             PublicPaths.render_page(req, handler, "chat.html")
 
-        self.router.add_route("GET", "/hello", hello_path, True)
-        # TODO: Add your routes here
         self.router.add_route("GET", "/", render_index, True)
         self.router.add_route("GET", "/chat", render_chat, True)
         self.router.add_route("GET", "/public", PublicPaths.serve_from_public, False)
@@ -32,6 +32,28 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("PATCH", "/api/reaction", ChatApi.add_reaction, False)
         self.router.add_route("DELETE", "/api/reaction", ChatApi.delete_reaction, False)
         self.router.add_route("PATCH", "/api/nickname", ChatApi.change_nickname, True)
+
+        # routes for authentication LO
+        def register(req, handler):
+            PublicPaths.render_page(req, handler, "register.html")
+        def login(req, handler):
+            PublicPaths.render_page(req, handler, "login.html")
+        def settings(req, handler):
+            PublicPaths.render_page(req, handler, "settings.html")
+        def search_users(req, handler):
+            PublicPaths.render_page(req, handler, "search-users.html")
+
+        self.router.add_route("GET", "/register", register, True)
+        self.router.add_route("GET", "/login", login, True)
+        self.router.add_route("GET", "/settings", settings, True)
+        self.router.add_route("GET", "/search-users", search_users, True)
+
+        self.router.add_route("POST", "/register", Authentication.register, True)
+        self.router.add_route("POST", "/register", Authentication.login, True)
+        self.router.add_route("GET", "/logout", Authentication.logout, True)
+        self.router.add_route("GET", "/api/users/@me", Authentication.display_profile, True)
+        self.router.add_route("GET", "/api/users/search", Authentication.search_users, False)
+        self.router.add_route("POST", "/api/users/settings", Authentication.update_login, True)
 
         super().__init__(request, client_address, server)
 
