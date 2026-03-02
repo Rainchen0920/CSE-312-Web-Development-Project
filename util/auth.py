@@ -73,8 +73,7 @@ class Authentication:
             res = Response().set_status(400, "Bad Request").text("Username Already Exists")
             handler.request.sendall(res.to_data())
             return 
-        salt = bcrypt.gensalt()
-        pw_hash = bcrypt.hashpw(password.encode(), salt)
+        pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
         user_collection.insert_one({
             "id": uuid.uuid4().hex,
             "username": username, 
@@ -123,9 +122,9 @@ class Authentication:
             handler.request.sendall(res.to_data())
             return
 
-        profile = dict(user_info)
-        profile.pop("password_hash", None)
-        profile.pop("auth_token_hash", None)
+        profile = {}
+        profile["username"] = user_info.get("username")
+        profile["id"] = user_info.get("id")
 
         res = Response().set_status(200, "OK").json(profile)
         handler.request.sendall(res.to_data())
@@ -170,7 +169,12 @@ class Authentication:
                 return
 
         pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt())
-        user_collection.update_one({"id": user_info.get("id")}, {"$set": {"username": new_username, "password_hash": pw_hash}})
+        password = ""
+        if (new_password != ""):
+            password = pw_hash
+        else:
+            password = user_info.get("password_hash")
+        user_collection.update_one({"id": user_info.get("id")}, {"$set": {"username": new_username, "password_hash": password}})
 
         res = Response().set_status(200, "OK").text("Login Updated")
         handler.request.sendall(res.to_data())

@@ -49,7 +49,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET", "/search-users", search_users, True)
 
         self.router.add_route("POST", "/register", Authentication.register, True)
-        self.router.add_route("POST", "/register", Authentication.login, True)
+        self.router.add_route("POST", "/login", Authentication.login, True)
         self.router.add_route("GET", "/logout", Authentication.logout, True)
         self.router.add_route("GET", "/api/users/@me", Authentication.display_profile, True)
         self.router.add_route("GET", "/api/users/search", Authentication.search_users, False)
