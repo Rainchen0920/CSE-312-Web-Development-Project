@@ -78,7 +78,8 @@ class Authentication:
             "id": uuid.uuid4().hex,
             "username": username, 
             "auth_token_hash": "", 
-            "password_hash": pw_hash # password + salt cuz bcrypt
+            "password_hash": pw_hash, # password + salt cuz bcrypt
+            "imageURL": ""
         })
         res = Response().set_status(200, "OK").text("Registered")
         handler.request.sendall(res.to_data())
@@ -125,6 +126,7 @@ class Authentication:
         profile = {}
         profile["username"] = user_info.get("username")
         profile["id"] = user_info.get("id")
+        profile["imageURL"] = user_info.get("imageURL")
 
         res = Response().set_status(200, "OK").json(profile)
         handler.request.sendall(res.to_data())

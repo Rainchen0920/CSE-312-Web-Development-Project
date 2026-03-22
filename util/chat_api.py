@@ -3,6 +3,7 @@ import uuid
 from util.response import Response
 from util.database import chat_collection
 from util.database import user_collection
+from util.auth import get_user_info
 import hashlib
 
 
@@ -74,6 +75,7 @@ class ChatApi:
                 "reactions": chat_details.get("reactions", {}),
                 "nickname": chat_details.get("nickname", ""),
                 "updated": bool(chat_details.get("updated", False)),
+                "imageURL": chat_details.get("imageURL", "")
             })
         res = Response()
         res.json({"messages": messages})
@@ -96,6 +98,11 @@ class ChatApi:
         nickname = ""
         if chat_detail is not None:
             nickname = chat_detail.get("nickname", "")
+        
+        imageURL = ""
+        user_detail = get_user_info(request)
+        if user_detail is not None:
+            imageURL = user_detail.get("imageURL", "")
 
         chat_collection.insert_one({
             "id": msg_id,
@@ -103,7 +110,8 @@ class ChatApi:
             "content": escape_html(content),  # prevent HTML injection
             "updated": False,
             "nickname": nickname,
-            "reactions": {}
+            "reactions": {},
+            "imageURL": imageURL
         })
 
         handler.request.sendall(res.to_data())

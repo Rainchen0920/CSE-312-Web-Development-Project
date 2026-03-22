@@ -5,6 +5,7 @@ from util.hello_path import hello_path
 from util.public_paths import PublicPaths
 from util.chat_api import ChatApi
 from util.auth import Authentication
+from util.multipart import Multipart
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
@@ -55,15 +56,53 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET", "/api/users/search", Authentication.search_users, False)
         self.router.add_route("POST", "/api/users/settings", Authentication.update_login, True)
 
+        # routes for file uploads
+        def change_avatar(req, handler):
+            PublicPaths.render_page(req, handler, "change-avatar.html")
+        def videotube(req, handler):
+            PublicPaths.render_page(req, handler, "videotube.html")
+        def upload(req, handler):
+            PublicPaths.render_page(req, handler, "upload.html")
+        def view_video(req, handler):
+            PublicPaths.render_page(req, handler, "view-video.html")
+
+        self.router.add_route("GET", "/change-avatar", change_avatar, True)
+        self.router.add_route("POST", "/api/users/avatar", Multipart.upload_avatar, True)
+        self.router.add_route("GET", "/videotube", videotube, True)
+        self.router.add_route("POST", "/videotube/upload", upload, True)
+        self.router.add_route("GET", "/videotube/videos", view_video, False)
+
         super().__init__(request, client_address, server)
 
     def handle(self):
         received_data = self.request.recv(2048)
+        # no need to check if its valid since headers are def included in first 2048 bytes
+        header_end_index = received_data.find(b"\r\n\r\n")  
+
+        raw_headers = received_data[:header_end_index]
+        body = received_data[header_end_index + 4:]  # +4 to remove the \r\n\r\n
+
+        headers_text = raw_headers.decode()
+        content_length = 0
+        for line in headers_text.split("\r\n"):
+            if line.lower().startswith("content-length:"):
+                content_length = int(line.split(":", 1)[1].strip())
+                break
+
+        while len(body) < content_length:
+            chunk = self.request.recv(2048)
+            if not chunk:
+                break
+            body += chunk
+
+        full_data = raw_headers + b"\r\n\r\n" + body
+
         print(self.client_address)
         print("--- received data ---")
         print(received_data)
         print("--- end of data ---\n\n")
-        request = Request(received_data)
+
+        request = Request(full_data)
         self.router.route_request(request, self)
 
 def main():
