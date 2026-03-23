@@ -29,7 +29,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("PATCH", "/api/chats", ChatApi.patch_chat, False)
         self.router.add_route("DELETE", "/api/chats", ChatApi.delete_chat, False)
 
-        # routes for AO1 and AO2
+        # routes for HW1 AO1 and AO2
         self.router.add_route("PATCH", "/api/reaction", ChatApi.add_reaction, False)
         self.router.add_route("DELETE", "/api/reaction", ChatApi.delete_reaction, False)
         self.router.add_route("PATCH", "/api/nickname", ChatApi.change_nickname, True)
@@ -69,16 +69,18 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET", "/change-avatar", change_avatar, True)
         self.router.add_route("POST", "/api/users/avatar", Multipart.upload_avatar, True)
         self.router.add_route("GET", "/videotube", videotube, True)
-        self.router.add_route("POST", "/videotube/upload", upload, True)
+        self.router.add_route("GET", "/videotube/upload", upload, True)
         self.router.add_route("GET", "/videotube/videos", view_video, False)
+        self.router.add_route("POST", "/api/videos", Multipart.upload_video, True)
+        self.router.add_route("GET", "/api/videos", Multipart.get_videos, True)
+        self.router.add_route("GET", "/api/videos", Multipart.get_video, False)
 
         super().__init__(request, client_address, server)
 
     def handle(self):
         received_data = self.request.recv(2048)
-        # no need to check if its valid since headers are def included in first 2048 bytes
+        # no need to check if its valid since headers are included in first 2048 bytes
         header_end_index = received_data.find(b"\r\n\r\n")  
-
         raw_headers = received_data[:header_end_index]
         body = received_data[header_end_index + 4:]  # +4 to remove the \r\n\r\n
 
@@ -97,10 +99,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         full_data = raw_headers + b"\r\n\r\n" + body
 
-        print(self.client_address)
-        print("--- received data ---")
-        print(received_data)
-        print("--- end of data ---\n\n")
+        # print(self.client_address)
+        # print("--- received data ---")
+        # print(full_data)
+        # print("--- end of data ---\n\n")
 
         request = Request(full_data)
         self.router.route_request(request, self)

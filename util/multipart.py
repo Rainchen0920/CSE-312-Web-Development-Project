@@ -1,9 +1,10 @@
 import os
 import uuid
-from auth import get_user_info
+from util.auth import get_user_info
 from util.database import user_collection
 from util.database import video_collection
 from util.response import Response
+import datetime
 
 class Part:
     def __init__(self):
@@ -46,10 +47,14 @@ class Multipart:
 
         os.makedirs("public/imgs/profile-pics", exist_ok=True)  # makes directory if it doesn't exist already
 
+        avatar_dir = os.path.join("public", "imgs", "profile-pics")
         old_image_url = user_info.get("imageURL", "")
-        if old_image_url.startswith("/public/"):
+
+        if old_image_url.startswith("/public/imgs/profile-pics/"):
             old_path = old_image_url.lstrip("/")
-            if os.path.exists(old_path):
+            old_path = os.path.normpath(old_path)
+            expected_dir = os.path.normpath(avatar_dir)
+            if old_path.startswith(expected_dir) and os.path.exists(old_path):
                 os.remove(old_path)
 
         saved_filename = uuid.uuid4().hex + extension
@@ -122,7 +127,6 @@ class Multipart:
             "video_path": video_path,
             "created_at": created_at
         })
-
         res = Response().set_status(200, "OK").json({"id": video_id})
         handler.request.sendall(res.to_data())
     

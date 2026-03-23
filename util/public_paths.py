@@ -7,9 +7,11 @@ class PublicPaths:
         ".html": "text/html; charset=utf-8",
         ".js": "text/javascript; charset=utf-8",
         ".jpg": "image/jpeg",
+        ".png": "image/png",
         ".gif": "image/gif",
         ".webp": "image/webp",
-        ".ico": "image/x-icon"
+        ".ico": "image/x-icon",
+        ".mp4": "video/mp4"
     }
 
     # check if path is valid
