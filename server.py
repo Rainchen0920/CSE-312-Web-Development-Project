@@ -75,6 +75,13 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET", "/api/videos", Multipart.get_videos, True)
         self.router.add_route("GET", "/api/videos", Multipart.get_video, False)
 
+        # HW3 AO1
+        def set_thumbnail(req, handler):
+            PublicPaths.render_page(req, handler, "set-thumbnail.html")
+        
+        self.router.add_route("GET", "/videotube/set-thumbnail", set_thumbnail, False)
+        self.router.add_route("PUT", "/api/thumbnails", Multipart.change_thumbnail, False)
+
         super().__init__(request, client_address, server)
 
     def handle(self):

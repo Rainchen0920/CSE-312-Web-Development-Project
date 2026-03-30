@@ -11,7 +11,9 @@ class PublicPaths:
         ".gif": "image/gif",
         ".webp": "image/webp",
         ".ico": "image/x-icon",
-        ".mp4": "video/mp4"
+        ".mp4": "video/mp4",
+        ".m3u8": "application/vnd.apple.mpegurl",
+        ".ts": "video/mp2t"
     }
 
     # check if path is valid
