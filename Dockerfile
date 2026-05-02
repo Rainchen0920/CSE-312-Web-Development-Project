@@ -3,10 +3,11 @@ FROM python:3.8
 ENV HOME /root
 WORKDIR /root
 
-RUN apt-get update && apt-get install -y ffmpeg
+# RUN apt-get update && apt-get install -y ffmpeg
 
 COPY ./requirements.txt ./requirements.txt
 COPY ./server.py ./server.py
+COPY ./auth_server.py ./auth_server.py
 COPY ./public ./public
 COPY ./util ./util
 

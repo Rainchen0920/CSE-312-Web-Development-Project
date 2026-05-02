@@ -23,8 +23,7 @@ class PublicPaths:
         relativePath = requestPath[7:]   # remove /public
         if relativePath.startswith("/"):
             relativePath = relativePath[1:]
-        # remove unnecessary stuff from the path
-        relativePath = os.path.normpath(relativePath) 
+        relativePath = os.path.normpath(relativePath) # remove unnecessary stuff from the path
         # check path doesn't start from root even though its supposed to be relative
         if (relativePath.startswith("..")) or (os.path.isabs(relativePath)):  
             return None

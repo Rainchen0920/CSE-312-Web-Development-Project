@@ -1,10 +1,43 @@
 services:
+  nginx:
+    build: ./nginx
+    ports: 
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./public:/app/public
+    depends_on:
+      - myapp
+      - auth
+
   mongo:
     image: mongo:4.2.5
+
   myapp:
-    build: .
+    build: 
+      dockerfile: Dockerfile
     environment:
       WAIT_HOSTS: mongo:27017
       DOCKER_DB: true
     ports:
       - '8080:8080'
+    volumes:
+      - ./public:/app/public
+      - ./keys/public.pem:/app/keys/public.pem:ro
+    depends_on:
+      - mongo
+  
+  auth:
+    build:
+      dockerfile: Dockerfile
+    command: python3 -u auth_server.py
+    environment:
+      WAIT_HOSTS: mongo:27017
+      DOCKER_DB: true
+    ports:
+      - '8081:8081'
+    volumes:
+      - ./keys/private.pem:/app/keys/private.pem:ro
+      - ./keys/public.pem:/app/keys/public.pem:ro
+    depends_on:
+      - mongo

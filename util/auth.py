@@ -1,6 +1,7 @@
 import bcrypt
-import hashlib
 import uuid
+import jwt
+import time
 from util.response import Response
 from util.database import user_collection
 
@@ -15,6 +16,31 @@ def percent_decode(s: str):
             decoded_str += s[i]
             i += 1
     return decoded_str
+
+PRIVATE_KEY_PATH = "/app/keys/private.pem"
+PUBLIC_KEY_PATH = "/app/keys/public.pem"
+
+def read_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as f:
+        return f.read()
+
+def read_public_key():
+    with open(PUBLIC_KEY_PATH, "rb") as f:
+        return f.read()
+
+def create_jwt(user_info):
+    payload = {
+        "id": user_info["id"],
+        "username": user_info["username"],
+        "exp": int(time.time()) + 3600
+    }
+
+    private_key = read_private_key()
+    return jwt.encode(payload, private_key, algorithm="RS256")
+
+def verify_jwt(token):
+    public_key = read_public_key()
+    return jwt.decode(token, public_key, algorithms=["RS256"])
 
 def extract_credentials(request):
     name, pw = request.body.decode().split('&')
@@ -47,8 +73,19 @@ def get_user_info(request):
     token = request.cookies.get("auth_token")
     if not token:
         return None
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    return user_collection.find_one({"auth_token_hash": token_hash})
+    
+    try:
+        payload = verify_jwt(token)
+    except jwt.InvalidTokenError:
+        return None
+
+    if "id" not in payload or "username" not in payload:
+        return None
+    
+    return {
+        "id": payload["id"],
+        "username": payload["username"]
+    }
 
 def get_query_param(path: str, key: str):
     if "?" not in path:
@@ -77,11 +114,10 @@ class Authentication:
         user_collection.insert_one({
             "id": uuid.uuid4().hex,
             "username": username, 
-            "auth_token_hash": "", 
             "password_hash": pw_hash, # password + salt cuz bcrypt
             "imageURL": ""
         })
-        res = Response().set_status(200, "OK").text("Registered")
+        res = Response().text("Registered")
         handler.request.sendall(res.to_data())
         
     def login(request, handler):
@@ -96,24 +132,15 @@ class Authentication:
             res = Response().set_status(400, "Bad Request").text("Incorrect Password")
             handler.request.sendall(res.to_data())
             return 
-        auth_token = uuid.uuid4().hex
-        auth_token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
-        user_collection.update_one({"username": username}, {"$set": {"auth_token_hash": auth_token_hash}})
-        res = Response().set_status(200, "OK").text("Logged In, Authentication Token generated")
-        res.cookies({"auth_token": f"{auth_token}; HttpOnly; Max-Age=3600"})
+        jwt_token = create_jwt(user_info)
+        res = Response().text("Logged In")
+        res.cookies({"auth_token": f"{jwt_token}; HttpOnly; Max-Age=3600; Secure"})
         handler.request.sendall(res.to_data())
 
     def logout(request, handler):
-        token = request.cookies.get("auth_token")
-        if token:
-            token_hash = hashlib.sha256(token.encode()).hexdigest()
-            # clear out token hash server side
-            user_collection.update_one({"auth_token_hash": token_hash}, {"$set": {"auth_token_hash": ""}})
-
         res = Response().set_status(302, "Found")
         res.headersDict["Location"] = "/"  # redirect to homepage
-
-        res.cookies({"auth_token": "deleted; HttpOnly; Max-Age=0"})
+        res.cookies({"auth_token": "deleted; HttpOnly; Max-Age=0; Secure"})
         handler.request.sendall(res.to_data())
 
     def display_profile(request, handler):
@@ -123,12 +150,18 @@ class Authentication:
             handler.request.sendall(res.to_data())
             return
 
-        profile = {}
-        profile["username"] = user_info.get("username")
-        profile["id"] = user_info.get("id")
-        profile["imageURL"] = user_info.get("imageURL")
+        user_db_info = user_collection.find_one({"id": user_info["id"]})
+        if not user_db_info:
+            res = Response().set_status(401, "Unauthorized").json({})
+            handler.request.sendall(res.to_data())
+            return
 
-        res = Response().set_status(200, "OK").json(profile)
+        profile = {}
+        profile["username"] = user_db_info.get("username")
+        profile["id"] = user_db_info.get("id")
+        profile["imageURL"] = user_db_info.get("imageURL")
+
+        res = Response().json(profile)
         handler.request.sendall(res.to_data())
 
     def search_users(request, handler):
@@ -137,7 +170,7 @@ class Authentication:
             prefix = ""
 
         if prefix == "":
-            res = Response().set_status(200, "OK").json({"users": []})
+            res = Response().json({"users": []})
             handler.request.sendall(res.to_data())
             return
 
@@ -147,7 +180,7 @@ class Authentication:
             if username.startswith(prefix):
                 list_of_results.append({"id": user_info.get("id"), "username": username})
 
-        res = Response().set_status(200, "OK").json({"users": list_of_results})
+        res = Response().json({"users": list_of_results})
         handler.request.sendall(res.to_data())
 
     def update_login(request, handler):
@@ -157,14 +190,18 @@ class Authentication:
             handler.request.sendall(res.to_data())
             return
 
-        new_username, new_password = extract_credentials(request)    
+        user_db_info = user_collection.find_one({"id": user_info["id"]})
+        if not user_db_info:
+            res = Response().set_status(401, "Unauthorized").text("User not found")
+            handler.request.sendall(res.to_data())
+            return
 
+        new_username, new_password = extract_credentials(request)    
         if (new_password != "") and (not validate_password(new_password)):
             res = Response().set_status(400, "Bad Request").text("Invalid Password")
             handler.request.sendall(res.to_data())
             return
-
-        if new_username != user_info.get("username"):   # in case of duplicate username
+        if new_username != user_db_info.get("username"):   # in case of duplicate username
             if user_collection.find_one({"username": new_username}) is not None:
                 res = Response().set_status(400, "Bad Request").text("Username Already Taken")
                 handler.request.sendall(res.to_data())
@@ -175,8 +212,8 @@ class Authentication:
         if (new_password != ""):
             password = pw_hash
         else:
-            password = user_info.get("password_hash")
+            password = user_db_info.get("password_hash")
         user_collection.update_one({"id": user_info.get("id")}, {"$set": {"username": new_username, "password_hash": password}})
 
-        res = Response().set_status(200, "OK").text("Login Updated")
+        res = Response().text("Login Updated")
         handler.request.sendall(res.to_data())

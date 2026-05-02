@@ -27,6 +27,12 @@ class Multipart:
             handler.request.sendall(res.to_data())
             return
 
+        user_db_info = user_collection.find_one({"id": user_info["id"]})
+        if not user_db_info:
+            res = Response().set_status(401, "Unauthorized").text("User not found")
+            handler.request.sendall(res.to_data())
+            return
+
         multipart_data = parse_multipart(request)
 
         avatar_part = get_part_by_name(multipart_data, "avatar")
@@ -47,20 +53,20 @@ class Multipart:
             handler.request.sendall(res.to_data())
             return
 
-        os.makedirs("public/imgs/profile-pics", exist_ok=True)  # makes directory if it doesn't exist already
+        os.makedirs("/app/public/imgs/profile-pics", exist_ok=True)  # makes directory if it doesn't exist already
 
-        avatar_dir = os.path.join("public", "imgs", "profile-pics")
-        old_image_url = user_info.get("imageURL", "")
+        avatar_dir = "/app/public/imgs/profile-pics"
+        old_image_url = user_db_info.get("imageURL", "")
 
         if old_image_url.startswith("/public/imgs/profile-pics/"):
-            old_path = old_image_url.lstrip("/")
+            old_path = os.path.join("/app", old_image_url.lstrip("/"))
             old_path = os.path.normpath(old_path)
             expected_dir = os.path.normpath(avatar_dir)
             if old_path.startswith(expected_dir) and os.path.exists(old_path):
                 os.remove(old_path)
 
         saved_filename = uuid.uuid4().hex + extension
-        full_path = os.path.join("public", "imgs", "profile-pics", saved_filename)
+        full_path = os.path.join("/app/public/imgs/profile-pics", saved_filename)
 
         with open(full_path, "wb") as f:
             f.write(avatar_part.content)
@@ -72,7 +78,7 @@ class Multipart:
             {"$set": {"imageURL": image_url}}
         )
 
-        res = Response().set_status(200, "OK").text("Avatar uploaded successfully")
+        res = Response().text("Avatar uploaded successfully")
         handler.request.sendall(res.to_data())
 
     @staticmethod
@@ -109,11 +115,11 @@ class Multipart:
             handler.request.sendall(res.to_data())
             return
 
-        os.makedirs("public/videos", exist_ok=True)  # makes directory if it doesn't exist already
+        os.makedirs("/app/public/videos", exist_ok=True)  # makes directory if it doesn't exist already
 
         video_id = uuid.uuid4().hex
         saved_filename = video_id + ".mp4"
-        full_path = os.path.join("public", "videos", saved_filename)
+        full_path = os.path.join("/app/public", "videos", saved_filename)
 
         with open(full_path, "wb") as f:
             f.write(video_part.content)
@@ -137,7 +143,7 @@ class Multipart:
             "thumbnailURL": thumbnail_url,
             "hls_path": hls_path
         })
-        res = Response().set_status(200, "OK").json({"id": video_id})
+        res = Response().json({"id": video_id})
         handler.request.sendall(res.to_data())
     
     @staticmethod
@@ -156,7 +162,7 @@ class Multipart:
                 "hls_path": video.get("hls_path", "")
             })
 
-        res = Response().set_status(200, "OK").json({"videos": videos})
+        res = Response().json({"videos": videos})
         handler.request.sendall(res.to_data())
     
     @staticmethod
@@ -169,7 +175,7 @@ class Multipart:
             handler.request.sendall(res.to_data())
             return
 
-        res = Response().set_status(200, "OK").json({
+        res = Response().json({
             "video": {
                 "author_id": video.get("author_id", ""),
                 "title": video.get("title", ""),
@@ -215,7 +221,7 @@ class Multipart:
             {"id": video_id},
             {"$set": {"thumbnailURL": thumbnail_url}}
         )
-        res = Response().set_status(200, "OK").text("Thumbnail updated successfully")
+        res = Response().text("Thumbnail updated successfully")
         handler.request.sendall(res.to_data())
 
 
@@ -278,7 +284,6 @@ def get_part_content(part):
         return ""
     return part.content.decode()
     
-
 def get_filename_from_part(part):
     content_disposition = part.headers.get("Content-Disposition", "")
     for header in content_disposition.split(";"):
@@ -302,14 +307,14 @@ def get_video_duration(video_file_path):
     return float(duration_text)
 
 def generate_thumbnails(video_id, video_file_path):
-    os.makedirs("public/imgs/thumbnails", exist_ok=True)
+    os.makedirs("/app/public/imgs/thumbnails", exist_ok=True)
     duration = get_video_duration(video_file_path)
     timestamps = [0, duration * 0.25, duration * 0.50, duration * 0.75, max(duration * 0.98, 0)]
     thumbnail_urls = []
 
     for i, timestamp in enumerate(timestamps):
         saved_filename = f"{video_id}_{i}.jpg"
-        output_path = os.path.join("public", "imgs", "thumbnails", saved_filename)
+        output_path = os.path.join("/app/public", "imgs", "thumbnails", saved_filename)
         subprocess.run(  # -q:v for video quality
             ["ffmpeg", "-ss", str(timestamp), "-i", video_file_path, "-frames:v", "1", "-q:v", "2", "-y", output_path],  
             capture_output=True
@@ -319,7 +324,7 @@ def generate_thumbnails(video_id, video_file_path):
     return thumbnail_urls
 
 def generate_hls(video_id, input_video_path):
-    output_dir = os.path.join("public", "videos", video_id)
+    output_dir = os.path.join("/app/public", "videos", video_id)
     os.makedirs(output_dir, exist_ok=True)
     low_playlist = os.path.join(output_dir, "360p.m3u8")
     high_playlist = os.path.join(output_dir, "720p.m3u8")
